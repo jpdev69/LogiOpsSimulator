@@ -815,12 +815,50 @@ export const Tracker = ({ shipments: externalShipments, selectedShipment, onShip
 // Priority List Component
 export const PriorityList = ({ shipments = [], onNavigate = () => {} }) => {
   const [tasks, setTasks] = useState([]);
-  const [completedTasks, setCompletedTasks] = useState(new Set());
-  const [completedSubtasks, setCompletedSubtasks] = useState({});
+  
+  // Initialize from localStorage
+  const [completedTasks, setCompletedTasks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('priorityQueue_completedTasks');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch (error) {
+      console.error('Error loading completed tasks:', error);
+      return new Set();
+    }
+  });
+  
+  const [completedSubtasks, setCompletedSubtasks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('priorityQueue_completedSubtasks');
+      return saved ? JSON.parse(saved) : {};
+    } catch (error) {
+      console.error('Error loading completed subtasks:', error);
+      return {};
+    }
+  });
+  
   const [linkedShipments, setLinkedShipments] = useState({});
   const [taskFilter, setTaskFilter] = useState('active');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 4;
+  
+  // Save completedTasks to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('priorityQueue_completedTasks', JSON.stringify([...completedTasks]));
+    } catch (error) {
+      console.error('Error saving completed tasks:', error);
+    }
+  }, [completedTasks]);
+  
+  // Save completedSubtasks to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('priorityQueue_completedSubtasks', JSON.stringify(completedSubtasks));
+    } catch (error) {
+      console.error('Error saving completed subtasks:', error);
+    }
+  }, [completedSubtasks]);
 
   useEffect(() => {
     const fetchTasks = () => {
@@ -981,46 +1019,77 @@ export const PriorityList = ({ shipments = [], onNavigate = () => {} }) => {
          display: 'flex',
          gap: '10px',
          marginBottom: '20px',
-         justifyContent: 'flex-start'
+         justifyContent: 'space-between',
+         alignItems: 'center'
        }}>
-        <button
-          onClick={() => {
-            setTaskFilter('active');
-            setCurrentPage(1);
-          }}
-          style={{
-            padding: '10px 20px',
-            borderRadius: '6px',
-            border: taskFilter === 'active' ? 'none' : '2px solid #ddd',
-            backgroundColor: taskFilter === 'active' ? '#1976d2' : 'white',
-            color: taskFilter === 'active' ? 'white' : '#333',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '14px',
-            transition: 'all 0.2s'
-          }}
-        >
-          Active ({activeTasks.length})
-        </button>
-        <button
-          onClick={() => {
-            setTaskFilter('completed');
-            setCurrentPage(1);
-          }}
-          style={{
-            padding: '10px 20px',
-            borderRadius: '6px',
-            border: taskFilter === 'completed' ? 'none' : '2px solid #ddd',
-            backgroundColor: taskFilter === 'completed' ? '#4caf50' : 'white',
-            color: taskFilter === 'completed' ? 'white' : '#333',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '14px',
-            transition: 'all 0.2s'
-          }}
-        >
-          Completed ({completed.length})
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={() => {
+              setTaskFilter('active');
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: '10px 20px',
+              borderRadius: '6px',
+              border: taskFilter === 'active' ? 'none' : '2px solid #ddd',
+              backgroundColor: taskFilter === 'active' ? '#1976d2' : 'white',
+              color: taskFilter === 'active' ? 'white' : '#333',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '14px',
+              transition: 'all 0.2s'
+            }}
+          >
+            Active ({activeTasks.length})
+          </button>
+          <button
+            onClick={() => {
+              setTaskFilter('completed');
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: '10px 20px',
+              borderRadius: '6px',
+              border: taskFilter === 'completed' ? 'none' : '2px solid #ddd',
+              backgroundColor: taskFilter === 'completed' ? '#4caf50' : 'white',
+              color: taskFilter === 'completed' ? 'white' : '#333',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '14px',
+              transition: 'all 0.2s'
+            }}
+          >
+            Completed ({completed.length})
+          </button>
+        </div>
+        {completed.length > 0 && (
+          <button
+            onClick={() => {
+              if (window.confirm(`Clear all ${completed.length} completed tasks? This cannot be undone.`)) {
+                setCompletedTasks(new Set());
+                setCompletedSubtasks({});
+                localStorage.removeItem('priorityQueue_completedTasks');
+                localStorage.removeItem('priorityQueue_completedSubtasks');
+                alert('✅ All completed tasks have been cleared.');
+                setTaskFilter('active');
+              }
+            }}
+            style={{
+              padding: '10px 16px',
+              borderRadius: '6px',
+              border: '2px solid #f44336',
+              backgroundColor: 'white',
+              color: '#f44336',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '13px',
+              transition: 'all 0.2s'
+            }}
+            title="Clear all completed tasks from history"
+          >
+            🗑️ Clear Completed
+          </button>
+        )}
        </div>
 
        {taskFilter === 'active' ? (

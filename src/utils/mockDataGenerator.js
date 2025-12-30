@@ -277,14 +277,14 @@ export const generateCalls = (count = 8) => {
       caller_type: 'Customer',
       description: 'My delivery was supposed to arrive today but tracking shows delayed. Where is it?',
       action_needed: 'Contact carrier for updated ETA and notify customer',
-      status: 'INCOMING'
+      status: 'UPDATE'
     },
     {
       reason: 'Wrong Address',
       caller_type: 'Customer',
       description: 'I gave you my correct address but the label shows wrong address. Can you fix it?',
       action_needed: 'Verify address on file and contact shipper to correct if needed',
-      status: 'INCOMING'
+      status: 'UPDATE'
     },
     {
       reason: 'Damaged Package',
@@ -298,14 +298,14 @@ export const generateCalls = (count = 8) => {
       caller_type: 'Driver',
       description: 'Customer not at home. Attempted delivery failed. What should I do?',
       action_needed: 'Call customer to reschedule or approve return to warehouse',
-      status: 'URGENT'
+      status: 'COMPLAINT'
     },
     {
       reason: 'Schedule Pickup',
       caller_type: 'Customer',
       description: 'I need to ship something. Can you schedule a pickup for tomorrow morning?',
       action_needed: 'Confirm pickup time and location with customer',
-      status: 'INCOMING'
+      status: 'UPDATE'
     },
     {
       reason: 'Billing Question',
@@ -319,14 +319,14 @@ export const generateCalls = (count = 8) => {
       caller_type: 'Customer',
       description: 'My tracking number is not working. Can you look up my order?',
       action_needed: 'Search orders by name/email and provide tracking info',
-      status: 'URGENT'
+      status: 'COMPLAINT'
     },
     {
       reason: 'Carrier Pickup Failed',
       caller_type: 'Warehouse',
       description: 'Carrier missed our scheduled pickup. When will they come?',
       action_needed: 'Call carrier to reschedule pickup and notify shipper',
-      status: 'URGENT'
+      status: 'COMPLAINT'
     }
   ];
 

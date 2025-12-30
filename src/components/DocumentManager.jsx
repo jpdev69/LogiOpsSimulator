@@ -11,6 +11,12 @@ const DocumentManager = ({ shipments = [], onNavigate = () => {}, docTarget = nu
   const [selectedDocumentTab, setSelectedDocumentTab] = useState(null); // Track which tab the selection is from
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [linkedShipments, setLinkedShipments] = useState({});
+  const [bodsPage, setBodsPage] = useState(0);
+  const [podsPage, setPodsPage] = useState(0);
+  const [invoicesPage, setInvoicesPage] = useState(0);
+  const [showShipmentPopup, setShowShipmentPopup] = useState(false);
+  const [popupShipment, setPopupShipment] = useState(null);
+  const pageSize = 6;
 
   // Load documents once on mount and when collection state changes
   useEffect(() => {
@@ -429,8 +435,8 @@ const DocumentManager = ({ shipments = [], onNavigate = () => {}, docTarget = nu
         <div className="doc-number">BOL #{bod.bol_number}</div>
         <div
           className="tracking-badge clickable"
-          title="Open this shipment in Live Tracker"
-          onClick={() => navigateToTracker(bod.tracking_number)}
+          title="Show shipment details"
+          onClick={() => handleTrkLinkClick(bod.tracking_number)}
         >
           {bod.tracking_number}
         </div>
@@ -751,6 +757,51 @@ const DocumentManager = ({ shipments = [], onNavigate = () => {}, docTarget = nu
     </div>
   ));
 
+  // Shipment Popup
+  const ShipmentPopup = ({ shipment, onClose }) => (
+    <div className="shipment-popup">
+      <div className="popup-header">
+        <h3>Shipment Details</h3>
+        <button className="close-btn" onClick={onClose}>✖️</button>
+      </div>
+      <div className="popup-content">
+        <h4>Tracking Number: {shipment.tracking_number}</h4>
+        <p><strong>Carrier:</strong> {shipment.carrier}</p>
+        <p><strong>Status:</strong> {shipment.status}</p>
+        <p><strong>Estimated Delivery:</strong> {new Date(shipment.eta).toLocaleString()}</p>
+        <p><strong>Shipper:</strong> {shipment.sender_contact?.name}</p>
+        <p><strong>Consignee:</strong> {shipment.receiver_contact?.name}</p>
+        
+        <h5>Route</h5>
+        <div className="route-timeline">
+          {shipment.route?.map((step, index) => (
+            <div key={index} className="route-step">
+              <div className="step-info">
+                <div className="step-time">{new Date(step.timestamp).toLocaleString()}</div>
+                <div className="step-location">{step.location}</div>
+              </div>
+              <div className="step-status" style={{ color: step.status === 'DELIVERED' ? '#4caf50' : '#2196f3' }}>
+                {step.status}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Handle tracking number link click
+  const handleTrkLinkClick = (trackingNumber) => {
+    if (!trackingNumber) return;
+    const shipmentMatch = shipments?.find(s => s.tracking_number === trackingNumber);
+    if (shipmentMatch) {
+        setPopupShipment(shipmentMatch);
+        setShowShipmentPopup(true);
+    } else {
+        alert('Shipment details not found for this tracking number.');
+    }
+  };
+
   return (
     <div className="document-manager">
       <div className="doc-header-band">
@@ -807,38 +858,49 @@ const DocumentManager = ({ shipments = [], onNavigate = () => {}, docTarget = nu
           <div className="list-and-detail">
             <div className="document-list">
               <h3>Bills of Lading</h3>
-              {bods.slice(0, 6).map(bod => (
-                <div 
-                  key={bod.id}
-                  className={`list-item ${selectedDocument?.bol_number === bod.bol_number && selectedDocumentTab === 'bods' ? 'selected' : ''}`}
-                  onClick={() => handleSelectDocument(bod, 'bods')}
-                >
-                  <div className="list-item-header">
-                    <div className="doc-title">{bod.bol_number}</div>
-                    <div className={`status-badge ${bod.signed ? 'signed' : 'pending'}`}>
-                      {bod.signed ? '✓ Signed' : '⏳ Pending'}
+              {bods.length > 0 ? (
+                <>
+                  {bods.slice(bodsPage * pageSize, (bodsPage + 1) * pageSize).map(bod => (
+                    <div 
+                      key={bod.id}
+                      className={`list-item ${selectedDocument?.bol_number === bod.bol_number && selectedDocumentTab === 'bods' ? 'selected' : ''}`}
+                      onClick={() => handleSelectDocument(bod, 'bods')}
+                    >
+                      <div className="list-item-header">
+                        <div className="doc-title">{bod.bol_number}</div>
+                        <div className={`status-badge ${bod.signed ? 'signed' : 'pending'}`}>
+                          {bod.signed ? '✓ Signed' : '⏳ Pending'}
+                        </div>
+                      </div>
+                      <div className="list-item-details">
+                        <p>{bod.shipper.name} → {bod.consignee.name}</p>
+                        <p className="small">
+                          TRK:{' '}
+                          <button
+                            type="button"
+                            className="trk-link"
+                            title="Show shipment details"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTrkLinkClick(bod.tracking_number);
+                            }}
+                          >
+                            {bod.tracking_number}
+                          </button>
+                        </p>
+                        <p className="small">{bod.carrier} | {bod.total_weight}</p>
+                      </div>
                     </div>
+                  ))}
+                  <div className="pagination-controls">
+                    <button onClick={() => setBodsPage(p => p - 1)} disabled={bodsPage === 0}>Previous</button>
+                    <span>Page {bodsPage + 1} of {Math.ceil(bods.length / pageSize)}</span>
+                    <button onClick={() => setBodsPage(p => p + 1)} disabled={((bodsPage + 1) * pageSize) >= bods.length}>Next</button>
                   </div>
-                  <div className="list-item-details">
-                    <p>{bod.shipper.name} → {bod.consignee.name}</p>
-                    <p className="small">
-                      TRK:{' '}
-                      <button
-                        type="button"
-                        className="trk-link"
-                        title="Open in Live Tracker"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigateToTracker(bod.tracking_number);
-                        }}
-                      >
-                        {bod.tracking_number}
-                      </button>
-                    </p>
-                    <p className="small">{bod.carrier} | {bod.total_weight}</p>
-                  </div>
-                </div>
-              ))}
+                </>
+              ) : (
+                <div className="empty-list-message">No Bills of Lading found.</div>
+              )}
             </div>
             {selectedDocument && selectedDocumentTab === 'bods' && (
               <div className="detail-pane">
@@ -852,24 +914,35 @@ const DocumentManager = ({ shipments = [], onNavigate = () => {}, docTarget = nu
           <div className="list-and-detail">
             <div className="document-list">
               <h3>Proofs of Delivery</h3>
-              {pods.slice(0, 6).map(pod => (
-                <div 
-                  key={pod.id}
-                  className={`list-item ${selectedDocument?.pod_number === pod.pod_number && selectedDocumentTab === 'pods' ? 'selected' : ''}`}
-                  onClick={() => handleSelectDocument(pod, 'pods')}
-                >
-                  <div className="list-item-header">
-                    <div className="doc-title">{pod.tracking_number}</div>
-                    <div className={`status-badge ${pod.delivery_status === 'DELIVERED' ? 'delivered' : 'pending'}`}>
-                      {pod.delivery_status}
+              {pods.length > 0 ? (
+                <>
+                  {pods.slice(podsPage * pageSize, (podsPage + 1) * pageSize).map(pod => (
+                    <div 
+                      key={pod.id}
+                      className={`list-item ${selectedDocument?.pod_number === pod.pod_number && selectedDocumentTab === 'pods' ? 'selected' : ''}`}
+                      onClick={() => handleSelectDocument(pod, 'pods')}
+                    >
+                      <div className="list-item-header">
+                        <div className="doc-title">{pod.tracking_number}</div>
+                        <div className={`status-badge ${pod.delivery_status === 'DELIVERED' ? 'delivered' : 'pending'}`}>
+                          {pod.delivery_status}
+                        </div>
+                      </div>
+                      <div className="list-item-details">
+                        <p>{pod.recipient.name}</p>
+                        <p className="small">{pod.recipient_location.city}, {pod.recipient_location.state}</p>
+                      </div>
                     </div>
+                  ))}
+                  <div className="pagination-controls">
+                    <button onClick={() => setPodsPage(p => p - 1)} disabled={podsPage === 0}>Previous</button>
+                    <span>Page {podsPage + 1} of {Math.ceil(pods.length / pageSize)}</span>
+                    <button onClick={() => setPodsPage(p => p + 1)} disabled={((podsPage + 1) * pageSize) >= pods.length}>Next</button>
                   </div>
-                  <div className="list-item-details">
-                    <p>{pod.recipient.name}</p>
-                    <p className="small">{pod.recipient_location.city}, {pod.recipient_location.state}</p>
-                  </div>
-                </div>
-              ))}
+                </>
+              ) : (
+                <div className="empty-list-message">No Proofs of Delivery found.</div>
+              )}
             </div>
             {selectedDocument && selectedDocumentTab === 'pods' && (
               <div className="detail-pane">
@@ -883,31 +956,255 @@ const DocumentManager = ({ shipments = [], onNavigate = () => {}, docTarget = nu
           <div className="list-and-detail">
             <div className="document-list">
               <h3>Invoices</h3>
-              {invoices.slice(0, 6).map(inv => (
-                <div 
-                  key={inv.id}
-                  className={`list-item ${selectedDocument?.invoice_number === inv.invoice_number && selectedDocumentTab === 'invoices' ? 'selected' : ''}`}
-                  onClick={() => handleSelectDocument(inv, 'invoices')}
-                >
-                  <div className="list-item-header">
-                    <div className="doc-title">{inv.invoice_number}</div>
-                    <div className={`status-badge ${inv.payment_status === 'PAID' ? 'paid' : inv.payment_status === 'OVERDUE' ? 'overdue' : 'pending'}`}>
-                      {inv.payment_status}
+              {invoices.length > 0 ? (
+                <>
+                  {invoices.slice(invoicesPage * pageSize, (invoicesPage + 1) * pageSize).map(inv => (
+                    <div 
+                      key={inv.id}
+                      className={`list-item ${selectedDocument?.invoice_number === inv.invoice_number && selectedDocumentTab === 'invoices' ? 'selected' : ''}`}
+                      onClick={() => handleSelectDocument(inv, 'invoices')}
+                    >
+                      <div className="list-item-header">
+                        <div className="doc-title">{inv.invoice_number}</div>
+                        <div className={`status-badge ${inv.payment_status === 'PAID' ? 'paid' : inv.payment_status === 'OVERDUE' ? 'overdue' : 'pending'}`}>
+                          {inv.payment_status}
+                        </div>
+                      </div>
+                      <div className="list-item-details">
+                        <p>{inv.bill_to.name}</p>
+                        <p className="small">TRK: {inv.tracking_number}</p>
+                        <p className="small">Total: ${inv.total} | {inv.po_number}</p>
+                      </div>
                     </div>
+                  ))}
+                  <div className="pagination-controls">
+                    <button onClick={() => setInvoicesPage(p => p - 1)} disabled={invoicesPage === 0}>Previous</button>
+                    <span>Page {invoicesPage + 1} of {Math.ceil(invoices.length / pageSize)}</span>
+                    <button onClick={() => setInvoicesPage(p => p + 1)} disabled={((invoicesPage + 1) * pageSize) >= invoices.length}>Next</button>
                   </div>
-                  <div className="list-item-details">
-                    <p>{inv.bill_to.name}</p>
-                    <p className="small">TRK: {inv.tracking_number}</p>
-                    <p className="small">Total: ${inv.total} | {inv.po_number}</p>
-                  </div>
-                </div>
-              ))}
+                </>
+              ) : (
+                <div className="empty-list-message">No Invoices found.</div>
+              )}
             </div>
             {selectedDocument && selectedDocumentTab === 'invoices' && (
               <div className="detail-pane">
                 <InvoiceDetail invoice={selectedDocument} />
               </div>
             )}
+          </div>
+        )}
+
+        {showShipmentPopup && popupShipment && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15,23,42,0.55)',
+              backdropFilter: 'blur(2px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '24px',
+              zIndex: 1000
+            }}
+            onClick={() => setShowShipmentPopup(false)}
+          >
+            <div
+              style={{
+                width: 'min(920px, 92vw)',
+                maxHeight: '90vh',
+                background: 'white',
+                border: '2px solid #1976d2',
+                borderRadius: '12px',
+                boxShadow: '0 20px 40px rgba(15,23,42,0.3)',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '14px 16px',
+                background: 'linear-gradient(90deg, #0f172a, #1d4ed8)',
+                color: 'white'
+              }}>
+                <h3 style={{ margin: 0, fontSize: '18px' }}>📦 {popupShipment.tracking_number}</h3>
+                <button
+                  onClick={() => setShowShipmentPopup(false)}
+                  title="Close"
+                  style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    border: 'none',
+                    color: 'white',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ padding: '16px', overflowY: 'auto' }}>
+                {/* Basic Info */}
+                <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '8px', marginBottom: '12px', border: '1px solid #e5e7eb' }}>
+                  <h4 style={{ marginTop: 0, marginBottom: '8px' }}>Tracking</h4>
+                  <div style={{ fontSize: '13px', lineHeight: '1.8', wordBreak: 'break-word' }}>
+                    <div><strong>Number:</strong> {popupShipment.tracking_number}</div>
+                    <div><strong>Carrier:</strong> {popupShipment.carrier}</div>
+                    <div>
+                      <strong>Status:</strong>{' '}
+                      <span style={{
+                        backgroundColor: popupShipment.status === 'DELIVERED' ? '#4caf50' : popupShipment.status === 'IN_TRANSIT' ? '#2196f3' : popupShipment.status === 'DELAYED' ? '#ff9800' : popupShipment.status === 'EXCEPTION' ? '#f44336' : '#9e9e9e',
+                        color: 'white',
+                        padding: '2px 6px',
+                        borderRadius: '3px',
+                        fontSize: '12px'
+                      }}>
+                        {popupShipment.status}
+                      </span>
+                    </div>
+                    <div><strong>Priority:</strong> {popupShipment.priority}</div>
+                  </div>
+                </div>
+
+                {/* Route Info */}
+                <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '8px', marginBottom: '12px', border: '1px solid #e5e7eb' }}>
+                  <h4 style={{ marginTop: 0, marginBottom: '8px' }}>Route</h4>
+                  <div style={{ fontSize: '13px', lineHeight: '1.8', wordBreak: 'break-word' }}>
+                    <div>
+                      <strong>Origin:</strong> {popupShipment.origin.address}, {popupShipment.origin.city}, {popupShipment.origin.state} {popupShipment.origin.zip}
+                    </div>
+                    <div>
+                      <strong>Destination:</strong> {popupShipment.destination.address}, {popupShipment.destination.city}, {popupShipment.destination.state} {popupShipment.destination.zip}
+                    </div>
+                    <div><strong>Estimated Delivery:</strong> {new Date(popupShipment.eta).toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '8px', marginBottom: '12px', border: '1px solid #e5e7eb' }}>
+                  <h4 style={{ marginTop: 0, marginBottom: '8px' }}>📦 Items ({popupShipment.items.length})</h4>
+                  <div style={{ fontSize: '12px', wordBreak: 'break-word' }}>
+                    {popupShipment.items.map((item, idx) => (
+                      <div key={idx} style={{ paddingBottom: '6px', borderBottom: idx < popupShipment.items.length - 1 ? '1px solid #eee' : 'none', marginBottom: '6px' }}>
+                        <div><strong>{item.name}</strong></div>
+                        <div style={{ color: '#666' }}>Qty: {item.quantity} | Weight: {item.weight}lbs</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Documents */}
+                <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '8px', marginBottom: '12px', border: '1px solid #e5e7eb' }}>
+                  <h4 style={{ marginTop: 0, marginBottom: '8px' }}>📄 Documents</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                    <button
+                      onClick={() => {
+                        setShowShipmentPopup(false);
+                        setActiveTab('bods');
+                        const bodMatch = bods.find(b => b.tracking_number === popupShipment.tracking_number);
+                        if (bodMatch) {
+                          setSelectedDocument({ ...bodMatch });
+                          setSelectedDocumentTab('bods');
+                        }
+                      }}
+                      style={{
+                        padding: '10px',
+                        backgroundColor: '#4caf50',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#388e3c'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = '#4caf50'}
+                    >
+                      📋 BOL
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowShipmentPopup(false);
+                        setActiveTab('pods');
+                        const podMatch = pods.find(p => p.tracking_number === popupShipment.tracking_number);
+                        if (podMatch) {
+                          setSelectedDocument({ ...podMatch });
+                          setSelectedDocumentTab('pods');
+                        }
+                      }}
+                      style={{
+                        padding: '10px',
+                        backgroundColor: '#2196f3',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#1565c0'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = '#2196f3'}
+                    >
+                      ✓ POD
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowShipmentPopup(false);
+                        setActiveTab('invoices');
+                        const invMatch = invoices.find(i => i.tracking_number === popupShipment.tracking_number);
+                        if (invMatch) {
+                          setSelectedDocument({ ...invMatch });
+                          setSelectedDocumentTab('invoices');
+                        }
+                      }}
+                      style={{
+                        padding: '10px',
+                        backgroundColor: '#ff9800',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#e65100'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = '#ff9800'}
+                    >
+                      💰 Invoice
+                    </button>
+                  </div>
+                </div>
+
+                {/* Contacts */}
+                <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                  <h4 style={{ marginTop: 0, marginBottom: '8px' }}>📇 Contacts</h4>
+                  <div style={{ fontSize: '13px', lineHeight: '1.8', display: 'grid', gridTemplateColumns: '1fr', gap: '12px', wordBreak: 'break-word' }}>
+                    <div style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Shipper</div>
+                      <div><strong>Name:</strong> {popupShipment.sender_contact?.name}</div>
+                      <div><strong>Email:</strong> {popupShipment.sender_contact?.email}</div>
+                      <div><strong>Phone:</strong> {popupShipment.sender_contact?.phone}</div>
+                    </div>
+                    <div style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Consignee</div>
+                      <div><strong>Name:</strong> {popupShipment.receiver_contact?.name}</div>
+                      <div><strong>Email:</strong> {popupShipment.receiver_contact?.email}</div>
+                      <div><strong>Phone:</strong> {popupShipment.receiver_contact?.phone}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

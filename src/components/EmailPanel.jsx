@@ -19,7 +19,7 @@ const EmailPanel = ({ shipments = [], onNavigate = () => {} }) => {
       const statusEmails = (shipments || [])
         .filter(s => ['EXCEPTION', 'DELAYED'].includes(s.status))
         .map((s, i) => ({
-          id: 1000 + i,
+          id: `status-${s.id}-${i}`,
           sender: `dispatch@${(s.carrier || 'carrier').toLowerCase()}.com`,
           sender_type: 'carrier',
           priority: s.status === 'EXCEPTION' ? 'HIGH' : 'MEDIUM',
@@ -39,7 +39,7 @@ const EmailPanel = ({ shipments = [], onNavigate = () => {} }) => {
       const customerEmails = (shipments || [])
         .filter(s => ['EXCEPTION', 'DELAYED'].includes(s.status))
         .map((s, i) => ({
-          id: 2000 + i,
+          id: `customer-${s.id}-${i}`,
           sender: s.receiver_contact?.email || s.customer_email || 'customer@example.com',
           sender_type: 'customer',
           priority: s.status === 'EXCEPTION' ? 'HIGH' : 'MEDIUM',
@@ -71,23 +71,22 @@ const EmailPanel = ({ shipments = [], onNavigate = () => {} }) => {
         }
       });
       
-      // Add new emails to history instead of replacing
+      // Set emails (replace instead of append)
       setEmails(prev => {
-        const combined = [...statusEmails, ...customerEmails, ...allGeneratedEmails, ...prev];
-        // Keep only last 50 emails to avoid memory issues
-        return combined.slice(0, 50);
+        // Merge with previous emails, preserving read state
+        const prevEmailsMap = new Map(prev.map(e => [e.id, e]));
+        const mergedEmails = allNewEmails.map(email => {
+          const prevEmail = prevEmailsMap.get(email.id);
+          return prevEmail ? { ...email, read: prevEmail.read } : email;
+        });
+        return mergedEmails;
       });
       
-      // Update linked shipments for new emails
-      setLinkedShipments(prev => ({
-        ...newLinkedShipments,
-        ...prev
-      }));
+      // Update linked shipments
+      setLinkedShipments(newLinkedShipments);
     };
 
     fetchEmails();
-    const interval = setInterval(fetchEmails, 30000);
-    return () => clearInterval(interval);
   }, [shipments]);
 
   // Reset page when filter changes
@@ -110,7 +109,7 @@ const EmailPanel = ({ shipments = [], onNavigate = () => {} }) => {
 
   const markAsRead = async (emailId) => {
     // In a real app, this would update the backend
-    setEmails(emails.map(email => 
+    setEmails(prevEmails => prevEmails.map(email => 
       email.id === emailId ? { ...email, read: true } : email
     ));
   };
